@@ -1,11 +1,12 @@
+#include <SoftwareSerial.h>
 #include "Nextion.h"
 #include <String.h>
 #include <SHT1x.h>
 #define dataPin 10
 #define clockPin 11
+SoftwareSerial gprsSerial(8,7);
 SHT1x sht1x(dataPin, clockPin);
 SoftwareSerial HMISerial(13, 12);
-SoftwareSerial gprsSerial(8,7);
 
 NexNumber n0 = NexNumber(0, 9, "n0");
 NexNumber n1 = NexNumber(0, 10, "n1");
@@ -27,7 +28,7 @@ NexButton b3 = NexButton(0, 8, "b3");
 
 byte ter[3] = {255,255,255};
 bool sendMessageActive = true;
-NexTouch *nex_listen_list[] = { &b0,&b1,&b2,&b3, NULL};
+//NexTouch *nex_listen_list[] = { &b0,&b1,&b2,&b3, NULL};
 int sicaklik = 0;
 int nem = 0;
 int inekSayisi = 0;
@@ -75,9 +76,45 @@ void b3PopCallback(void *ptr)
   n1.setValue(toplamSut);
 }
 
+void SendTextMessage(int stresSeviyesi)
+{
+  if(sendMessageActive==true){
+    Serial.println("Sending Text...");
+    gprsSerial.print("AT+CMGF=1\r"); // Set the shield to SMS mode
+    delay(100);
+    gprsSerial.println("AT+CMGS=\"+905432814906\"");
+    delay(100);
+    if(stresSeviyesi==1)
+      gprsSerial.println("Alarm");
+    else if(stresSeviyesi==2)
+      gprsSerial.println("Tehlike baslangici");
+    else if(stresSeviyesi==3)
+      gprsSerial.println("Acil durum");
+    delay(100);
+    gprsSerial.print((char)26);//the ASCII code of the ctrl+z is 26 (required according to the datasheet)
+    delay(100);
+    gprsSerial.println();
+    Serial.println("Text Sent.");
+    sendMessageActive = false;
+  }
+}
+String readSIM()
+{
+    String buffer;
+    while (gprsSerial.available())
+    {
+        char c = gprsSerial.read();
+        buffer.concat(c);
+        //delay(10);
+    }
+    return buffer;
+}
 void setup(void)
 {
+  HMISerial.begin(19200);
+  delay(500);
   gprsSerial.begin(19200);
+  delay(500);
   Serial.begin(19200);
   delay(500);
   pinMode(A1, OUTPUT);
@@ -88,9 +125,8 @@ void setup(void)
   analogWrite(A3, 255);
   pinMode(A4, OUTPUT);
   analogWrite(A4, 255);
-
- 
-  
+  gprsSerial.print("AT+CNMI=2,2,0,0,0"); //canlı sms receive yapar
+  delay(100);
   nexInit();
   n0.setValue(inekSayisi);
   n1.setValue(toplamSut);
@@ -99,7 +135,6 @@ void setup(void)
   b1.attachPop(b1PopCallback, &b1);
   b2.attachPop(b2PopCallback, &b2);
   b3.attachPop(b3PopCallback, &b3);
-  //dbSerialPrintln("setup done");
   nexSerial.print("vis t16,0");
   nexSerial.write(ter,3);
   nexSerial.print("vis t0,0");
@@ -123,43 +158,7 @@ void setSicaklik(float sicaklik){
 void setNem(float nem){
   n3.setValue(nem);
 }
-void SendTextMessage(int stresSeviyesi)
-{
-  if(sendMessageActive==true){
-    Serial.println("Sending Text...");
-    gprsSerial.print("AT+CMGF=1\r"); // Set the shield to SMS mode
-    delay(100);
-    gprsSerial.println("AT+CMGS=\"+905433413415\"");
-    delay(100);
-    if(stresSeviyesi==1)
-      gprsSerial.println("Alarm");
-    else if(stresSeviyesi==2)
-      gprsSerial.println("Tehlike baslangici");
-    else if(stresSeviyesi==3)
-      gprsSerial.println("Acil durum");
-    delay(100);
-    gprsSerial.print((char)26);//the ASCII code of the ctrl+z is 26 (required according to the datasheet)
-    delay(100);
-    gprsSerial.println();
-    Serial.println("Text Sent.");
-    sendMessageActive = false;
-  }
-}
-
-void loop(void)
-{
-  if (Serial.available()){// if there is incoming serial data
-    switch(Serial.read()) // read the character
-     {
-       case 't': // if the character is 't'
-         SendTextMessage(1); // send the text message
-         break;
-     } 
-  }
-   
-  if (gprsSerial.available()){ // if the shield has something to say
-    Serial.write(gprsSerial.read()); // display the output of the shield
-  }
+void setScreenSniStates(){
   if(sni<72){
     nexSerial.print("vis t16,1");
     nexSerial.write(ter,3);
@@ -235,8 +234,29 @@ void loop(void)
     nexSerial.write(ter,3);
     SendTextMessage(3);
   }
-  nexLoop(nex_listen_list);
-  if(millis() - sendMessagelastTime > 900000){ //15 dk
+}
+void loop(void)
+{  
+  String buffer = readSIM();
+  if (buffer.startsWith("\r\n+CMT: "))
+  {
+      Serial.println("RECEIVED SMS");
+      buffer.remove(0, 56);
+      int len = buffer.length();
+      buffer.remove(len - 2, 2);
+      Serial.println(buffer);
+      if(buffer=="1")
+        analogWrite(A1, 0);
+      if(buffer=="2")
+        analogWrite(A2, 0);
+      if(buffer=="3")
+        analogWrite(A3, 0);
+      if(buffer=="4")
+        analogWrite(A4, 0);
+  }
+  //delay(100);
+  setScreenSniStates();
+  if(millis() - sendMessagelastTime > 900000){//15 dk
     sendMessageActive = true;
     sendMessagelastTime = millis();
   }
@@ -244,13 +264,10 @@ void loop(void)
   {
     tempC = sht1x.readTemperatureC();
     humidity = sht1x.readHumidity();
-    Serial.println("Sicaklik");
-    Serial.println(tempC);
-    Serial.println("Nem");
-    Serial.println(humidity);
     setSicaklik(tempC);
     setNem(humidity);
     calculateSni(tempC, humidity);
     lastTime = millis();
   }
+  //nexLoop(nex_listen_list);
 }
