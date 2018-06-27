@@ -29,8 +29,8 @@ NexButton b3 = NexButton(0, 8, "b3");
 byte ter[3] = {255,255,255};
 bool sendMessageActive = true;
 //NexTouch *nex_listen_list[] = { &b0,&b1,&b2,&b3, NULL};
-int sicaklik = 0;
-int nem = 0;
+float sicaklik = 0;
+float nem = 0;
 int inekSayisi = 0;
 int toplamSut = 0;
 float sni = 0;
@@ -82,7 +82,7 @@ void SendTextMessage(int stresSeviyesi)
     Serial.println("Sending Text...");
     gprsSerial.print("AT+CMGF=1\r"); // Set the shield to SMS mode
     delay(100);
-    gprsSerial.println("AT+CMGS=\"+905432814906\"");
+    gprsSerial.println("AT+CMGS=\"+905433413415\"");
     delay(100);
     if(stresSeviyesi==1)
       gprsSerial.println("Alarm");
@@ -109,13 +109,48 @@ String readSIM()
     }
     return buffer;
 }
+void sendData(){
+  char valA[10], valB[10], valC[10];
+  dtostrf(tempC, 3, 3, valA);
+  dtostrf(humidity, 3, 3, valB);
+  dtostrf(sni, 3, 3, valC);
+  char urlData[180];
+  gprsSerial.println("AT+SAPBR=3,1,\"APN\",\"internet\"");
+  delay(1000);
+  gprsSerial.println("AT+SAPBR=1,1");
+  delay(1000);
+  gprsSerial.println("AT+HTTPINIT");
+  delay(500);
+  gprsSerial.println("AT+HTTPPARA=\"CID\",1");
+  delay(500);
+  gprsSerial.println("AT+HTTPPARA=\"URL\",\"http://www.unalkizil.com/index.php?sicaklik=21&nem=22&sni=23\"");
+  gprsSerial.println("AT+HTTPACTION=0");
+  
+  /*strcpy(urlData, "AT+HTTPPARA=\"URL\",\"http://www.unalkizil.com/index.php?");
+  strcat(urlData, "sicaklik=");
+  strcat(urlData, valA);
+  strcat(urlData, "&nem=");
+  strcat(urlData, valB);
+  strcat(urlData, "&sni=");
+  strcat(urlData, valC);
+  strcat(urlData, "\"");
+  
+  Serial.print("Payload: ");      //
+  Serial.print(urlData);          // Print to serial console to see what is inside the payload
+  Serial.println(" EOL");
+  delay(1000);
+  gprsSerial.println(urlData);
+  delay(1000);
+  gprsSerial.println("AT+HTTPACTION=0");*/
+  Serial.println("Data sent!");
+}
 void setup(void)
 {
-  HMISerial.begin(19200);
+  HMISerial.begin(115200);
   delay(500);
-  gprsSerial.begin(19200);
+  gprsSerial.begin(115200);
   delay(500);
-  Serial.begin(19200);
+  Serial.begin(115200);
   delay(500);
   pinMode(A1, OUTPUT);
   analogWrite(A1, 255);
@@ -125,9 +160,12 @@ void setup(void)
   analogWrite(A3, 255);
   pinMode(A4, OUTPUT);
   analogWrite(A4, 255);
+  //gprsSerial.print("AT+CMGF=1\r"); // Set the shield to SMS mode
+  //delay(100);
   gprsSerial.print("AT+CNMI=2,2,0,0,0"); //canlı sms receive yapar
   delay(100);
-  nexInit();
+  gprsSerial.print("AT+IPR=0");//otomatik baud
+  //nexInit();
   n0.setValue(inekSayisi);
   n1.setValue(toplamSut);
   
@@ -240,33 +278,37 @@ void loop(void)
   String buffer = readSIM();
   if (buffer.startsWith("\r\n+CMT: "))
   {
-      Serial.println("RECEIVED SMS");
-      buffer.remove(0, 56);
+      //Serial.println(buffer);
+      //Serial.println("RECEIVED SMS");
+      buffer.remove(0, 49);
       int len = buffer.length();
-      buffer.remove(len - 2, 2);
-      Serial.println(buffer);
-      if(buffer=="1")
+      //buffer.remove(len - 2, 2);
+      Serial.print("*");
+      Serial.print(buffer);
+      Serial.print("*");
+      if(buffer.indexOf("role1") > 0)
         analogWrite(A1, 0);
-      if(buffer=="2")
+      if(buffer.indexOf("role2") > 0)
         analogWrite(A2, 0);
-      if(buffer=="3")
+      if(buffer.indexOf("role3") > 0)
         analogWrite(A3, 0);
-      if(buffer=="4")
+      if(buffer.indexOf("role4") > 0)
         analogWrite(A4, 0);
   }
-  //delay(100);
+  delay(100);
   setScreenSniStates();
   if(millis() - sendMessagelastTime > 900000){//15 dk
     sendMessageActive = true;
     sendMessagelastTime = millis();
   }
-  if (millis() - lastTime > 1000)//1sn
+  if (millis() - lastTime > 6000)//3sn
   {
     tempC = sht1x.readTemperatureC();
     humidity = sht1x.readHumidity();
     setSicaklik(tempC);
     setNem(humidity);
     calculateSni(tempC, humidity);
+    sendData();
     lastTime = millis();
   }
   //nexLoop(nex_listen_list);
