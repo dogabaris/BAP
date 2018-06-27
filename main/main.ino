@@ -1,15 +1,13 @@
-#include <SoftwareSerial.h>
+//#include <SoftwareSerial.h>
 #include "Nextion.h"
 #include <String.h>
 #include <SHT1x.h>
 #define dataPin 10
 #define clockPin 11
-SoftwareSerial gprsSerial(8,7);
+//SoftwareSerial gprsSerial(8,7);
 SHT1x sht1x(dataPin, clockPin);
-SoftwareSerial HMISerial(13, 12);
+//SoftwareSerial HMISerial(13, 12);
 
-NexNumber n0 = NexNumber(0, 9, "n0");
-NexNumber n1 = NexNumber(0, 10, "n1");
 NexNumber n2 = NexNumber(0, 14, "n2");
 NexNumber n3 = NexNumber(0, 15, "n3");
 NexText t16 = NexText(0, 27, "t16");
@@ -28,11 +26,8 @@ NexButton b3 = NexButton(0, 8, "b3");
 
 byte ter[3] = {255,255,255};
 bool sendMessageActive = true;
-//NexTouch *nex_listen_list[] = { &b0,&b1,&b2,&b3, NULL};
 float sicaklik = 0;
 float nem = 0;
-int inekSayisi = 0;
-int toplamSut = 0;
 float sni = 0;
 unsigned long lastTime = 0;
 unsigned long sendMessagelastTime = 0;
@@ -44,89 +39,64 @@ float calculateSni(int sicaklik, int nem){
 }
 float tempC = 0;
 float humidity = 0;
-
-void b0PopCallback(void *ptr)
-{
-  dbSerialPrintln("b0PopCallback");
-  dbSerialPrint("ptr=");
-  if(inekSayisi!=0)
-    inekSayisi = inekSayisi-1;
-  n0.setValue(inekSayisi);
-}
-void b1PopCallback(void *ptr)
-{
-  dbSerialPrintln("b1PopCallback");
-  dbSerialPrint("ptr=");
-  inekSayisi = inekSayisi+1;
-  n0.setValue(inekSayisi);
-}
-void b2PopCallback(void *ptr)
-{
-  dbSerialPrintln("b2PopCallback");
-  dbSerialPrint("ptr=");
-  if(toplamSut!=0)
-    toplamSut = toplamSut-1;
-  n1.setValue(toplamSut);
-}
-void b3PopCallback(void *ptr)
-{
-  dbSerialPrintln("b3PopCallback");
-  dbSerialPrint("ptr=");
-  toplamSut = toplamSut+1;
-  n1.setValue(toplamSut);
-}
-
+char valA[10], valB[10], valC[10];
+char urlData[80];
 void SendTextMessage(int stresSeviyesi)
 {
   if(sendMessageActive==true){
-    Serial.println("Sending Text...");
-    gprsSerial.print("AT+CMGF=1\r"); // Set the shield to SMS mode
+    ////Serial.println("Sending Text...");
+    Serial1.print("AT+CMGF=1\r"); // Set the shield to SMS mode
     delay(100);
-    gprsSerial.println("AT+CMGS=\"+905433413415\"");
+    Serial1.println("AT+CMGS=\"+905433413415\"");
     delay(100);
     if(stresSeviyesi==1)
-      gprsSerial.println("Alarm");
+      Serial1.println("Alarm");
     else if(stresSeviyesi==2)
-      gprsSerial.println("Tehlike baslangici");
+      Serial1.println("Tehlike baslangici");
     else if(stresSeviyesi==3)
-      gprsSerial.println("Acil durum");
+      Serial1.println("Acil durum");
     delay(100);
-    gprsSerial.print((char)26);//the ASCII code of the ctrl+z is 26 (required according to the datasheet)
+    Serial1.print((char)26);//the ASCII code of the ctrl+z is 26 (required according to the datasheet)
     delay(100);
-    gprsSerial.println();
-    Serial.println("Text Sent.");
+    Serial1.println();
+    //Serial.println("Text Sent.");
     sendMessageActive = false;
   }
 }
 String readSIM()
 {
     String buffer;
-    while (gprsSerial.available())
+    while (Serial1.available())
     {
-        char c = gprsSerial.read();
+        char c = Serial1.read();
         buffer.concat(c);
-        //delay(10);
+        delay(10);
     }
     return buffer;
 }
 void sendData(){
-  char valA[10], valB[10], valC[10];
+  
+  Serial1.println("AT+SAPBR=3,1,\"APN\",\"internet\"");
+  delay(1000);
+  Serial1.println("AT+SAPBR=1,1");
+  delay(1000);
+  Serial1.println("AT+HTTPINIT");
+  delay(500);
+  Serial1.println("AT+HTTPPARA=\"CID\",1");
+  delay(500);
+  //for(int i=0; i< tempC.len;i++)
+  //sprintf(valA,"%d",tempC);
+  //sprintf(valB,"%d",humidity);
+  //itoa(valA, tempC, 10);
+  //itoa(valB, humidity, 10);
   dtostrf(tempC, 3, 3, valA);
   dtostrf(humidity, 3, 3, valB);
   dtostrf(sni, 3, 3, valC);
-  char urlData[180];
-  gprsSerial.println("AT+SAPBR=3,1,\"APN\",\"internet\"");
-  delay(1000);
-  gprsSerial.println("AT+SAPBR=1,1");
-  delay(1000);
-  gprsSerial.println("AT+HTTPINIT");
-  delay(500);
-  gprsSerial.println("AT+HTTPPARA=\"CID\",1");
-  delay(500);
-  gprsSerial.println("AT+HTTPPARA=\"URL\",\"http://www.unalkizil.com/index.php?sicaklik=21&nem=22&sni=23\"");
-  gprsSerial.println("AT+HTTPACTION=0");
   
-  /*strcpy(urlData, "AT+HTTPPARA=\"URL\",\"http://www.unalkizil.com/index.php?");
+  //Serial1.println("AT+HTTPPARA=\"URL\",\"http://www.unalkizil.com/index.php?sicaklik=21&nem=22&sni=23\"");
+  //Serial1.println("AT+HTTPACTION=0");
+  
+  strcpy(urlData, "AT+HTTPPARA=\"URL\",\"http://www.unalkizil.com/index.php?");
   strcat(urlData, "sicaklik=");
   strcat(urlData, valA);
   strcat(urlData, "&nem=");
@@ -135,22 +105,21 @@ void sendData(){
   strcat(urlData, valC);
   strcat(urlData, "\"");
   
-  Serial.print("Payload: ");      //
-  Serial.print(urlData);          // Print to serial console to see what is inside the payload
-  Serial.println(" EOL");
-  delay(1000);
-  gprsSerial.println(urlData);
-  delay(1000);
-  gprsSerial.println("AT+HTTPACTION=0");*/
+  ////Serial.print("Payload: ");      //
+  //Serial.print(urlData);          // Print to serial console to see what is inside the payload
+  ////Serial.println(" EOL");
+  //delay(1000);
+  Serial1.println(urlData);
+  //delay(1000);
+  Serial1.println("AT+HTTPACTION=0");
   Serial.println("Data sent!");
 }
 void setup(void)
 {
-  HMISerial.begin(115200);
-  delay(500);
-  gprsSerial.begin(115200);
-  delay(500);
   Serial.begin(115200);
+  //HMISerial.begin(115200);
+  Serial1.begin(115200);
+  Serial2.begin(115200);
   delay(500);
   pinMode(A1, OUTPUT);
   analogWrite(A1, 255);
@@ -160,35 +129,29 @@ void setup(void)
   analogWrite(A3, 255);
   pinMode(A4, OUTPUT);
   analogWrite(A4, 255);
-  //gprsSerial.print("AT+CMGF=1\r"); // Set the shield to SMS mode
-  //delay(100);
-  gprsSerial.print("AT+CNMI=2,2,0,0,0"); //canlı sms receive yapar
+  Serial1.print("AT+CMGF=1\r"); // Set the shield to SMS mode
   delay(100);
-  gprsSerial.print("AT+IPR=0");//otomatik baud
-  //nexInit();
-  n0.setValue(inekSayisi);
-  n1.setValue(toplamSut);
-  
-  b0.attachPop(b0PopCallback, &b0);
-  b1.attachPop(b1PopCallback, &b1);
-  b2.attachPop(b2PopCallback, &b2);
-  b3.attachPop(b3PopCallback, &b3);
-  nexSerial.print("vis t16,0");
-  nexSerial.write(ter,3);
-  nexSerial.print("vis t0,0");
-  nexSerial.write(ter,3);
-  nexSerial.print("vis t17,0");
-  nexSerial.write(ter,3);
-  nexSerial.print("vis t18,0");
-  nexSerial.write(ter,3);
-  nexSerial.print("vis g0,0");
-  nexSerial.write(ter,3);
-  nexSerial.print("vis g1,0");
-  nexSerial.write(ter,3);
-  nexSerial.print("vis g2,0");
-  nexSerial.write(ter,3);
-  nexSerial.print("vis g3,0");
-  nexSerial.write(ter,3);
+  Serial1.print("AT+CNMI=2,2,0,0,0"); //canlı sms receive yapar
+  delay(100);
+  Serial1.print("AT+IPR=115200");//otomatik baud
+  nexInit();
+  Serial.println("Başladı.");
+  Serial2.print("vis t16,0");
+  Serial2.write(ter,3);
+  Serial2.print("vis t0,0");
+  Serial2.write(ter,3);
+  Serial2.print("vis t17,0");
+  Serial2.write(ter,3);
+  Serial2.print("vis t18,0");
+  Serial2.write(ter,3);
+  Serial2.print("vis g0,0");
+  Serial2.write(ter,3);
+  Serial2.print("vis g1,0");
+  Serial2.write(ter,3);
+  Serial2.print("vis g2,0");
+  Serial2.write(ter,3);
+  Serial2.print("vis g3,0");
+  Serial2.write(ter,3);
 }
 void setSicaklik(float sicaklik){
   n2.setValue(sicaklik);
@@ -198,88 +161,90 @@ void setNem(float nem){
 }
 void setScreenSniStates(){
   if(sni<72){
-    nexSerial.print("vis t16,1");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g0,1");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis t0,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g1,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis t17,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g2,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis t18,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g3,0");
-    nexSerial.write(ter,3);
+    Serial2.print("vis t16,1");
+    Serial2.write(ter,3);
+    Serial2.print("vis g0,1");
+    Serial2.write(ter,3);
+    Serial2.print("vis t0,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis g1,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis t17,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis g2,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis t18,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis g3,0");
+    Serial2.write(ter,3);
   }
   else if(sni>=72 && sni<80){
-    nexSerial.print("vis t16,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g0,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis t0,1");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g1,1");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis t17,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g2,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis t18,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g3,0");
-    nexSerial.write(ter,3);
+    Serial2.print("vis t16,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis g0,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis t0,1");
+    Serial2.write(ter,3);
+    Serial2.print("vis g1,1");
+    Serial2.write(ter,3);
+    Serial2.print("vis t17,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis g2,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis t18,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis g3,0");
+    Serial2.write(ter,3);
     SendTextMessage(1);
   }
   else if(sni>=80 && sni<90){
-    nexSerial.print("vis t16,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g0,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis t0,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g1,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis t17,1");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g2,1");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis t18,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g3,0");
-    nexSerial.write(ter,3);
+    Serial2.print("vis t16,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis g0,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis t0,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis g1,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis t17,1");
+    Serial2.write(ter,3);
+    Serial2.print("vis g2,1");
+    Serial2.write(ter,3);
+    Serial2.print("vis t18,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis g3,0");
+    Serial2.write(ter,3);
     SendTextMessage(2);
   }
   else if(sni>=90){
-    nexSerial.print("vis t16,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g0,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis t0,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g1,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis t17,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g2,0");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis t18,1");
-    nexSerial.write(ter,3);
-    nexSerial.print("vis g3,1");
-    nexSerial.write(ter,3);
+    Serial2.print("vis t16,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis g0,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis t0,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis g1,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis t17,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis g2,0");
+    Serial2.write(ter,3);
+    Serial2.print("vis t18,1");
+    Serial2.write(ter,3);
+    Serial2.print("vis g3,1");
+    Serial2.write(ter,3);
     SendTextMessage(3);
   }
 }
 void loop(void)
 {  
   String buffer = readSIM();
+  if(buffer!="")
+    Serial.println(buffer);
   if (buffer.startsWith("\r\n+CMT: "))
   {
-      //Serial.println(buffer);
-      //Serial.println("RECEIVED SMS");
+      Serial.println(buffer);
+      Serial.println("RECEIVED SMS");
       buffer.remove(0, 49);
       int len = buffer.length();
       //buffer.remove(len - 2, 2);
@@ -294,22 +259,31 @@ void loop(void)
         analogWrite(A3, 0);
       if(buffer.indexOf("role4") > 0)
         analogWrite(A4, 0);
+      if(buffer.indexOf("kaparole1") > 0)
+        analogWrite(A1, 255);
+      if(buffer.indexOf("kaparole2") > 0)
+        analogWrite(A2, 255);
+      if(buffer.indexOf("kaparole3") > 0)
+        analogWrite(A3, 255);
+      if(buffer.indexOf("kaparole4") > 0)
+        analogWrite(A4, 255);
   }
   delay(100);
   setScreenSniStates();
-  if(millis() - sendMessagelastTime > 900000){//15 dk
+  if(millis() - sendMessagelastTime > 900000){//15 dk 900000
     sendMessageActive = true;
     sendMessagelastTime = millis();
   }
-  if (millis() - lastTime > 6000)//3sn
+  if (millis() - lastTime > 3000)//3sn
   {
     tempC = sht1x.readTemperatureC();
     humidity = sht1x.readHumidity();
+    Serial.println(tempC);
+    Serial.println(humidity);
     setSicaklik(tempC);
     setNem(humidity);
     calculateSni(tempC, humidity);
-    sendData();
+    //sendData();
     lastTime = millis();
   }
-  //nexLoop(nex_listen_list);
 }
