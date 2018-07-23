@@ -7,7 +7,8 @@
 //SoftwareSerial gprsSerial(8,7);
 SHT1x sht1x(dataPin, clockPin);
 //SoftwareSerial HMISerial(13, 12);
-
+char valA[10], valB[10], valC[10];
+char urlData[180];
 NexNumber n2 = NexNumber(0, 14, "n2");
 NexNumber n3 = NexNumber(0, 15, "n3");
 NexText t16 = NexText(0, 27, "t16");
@@ -52,7 +53,7 @@ void SendTextMessage(int stresSeviyesi)
     ////Serial.println("Sending Text...");
     Serial1.print("AT+CMGF=1\r"); // Set the shield to SMS mode
     delay(100);
-    Serial1.println("AT+CMGS=\"+905325798234\"");
+    Serial1.println("AT+CMGS=\"+905355635461\"");
     delay(100);
     if(stresSeviyesi==1)
       Serial1.println("Alarm");
@@ -83,22 +84,18 @@ void sendData(){
   
   Serial1.println("AT+SAPBR=3,1,\"APN\",\"internet\"");
   delay(1000);
-  //Serial1.println("AT+SAPBR=1,1");
-  //delay(1500);
+  Serial1.println("AT+SAPBR=1,1");
+  delay(1500);
   Serial1.println("AT+HTTPINIT");
   delay(1000);
   Serial1.println("AT+HTTPPARA=\"CID\",1");
   delay(1000);
-  
-  //Serial1.println("AT+HTTPPARA=\"URL\",\"http://www.unalkizil.com/index.php?sicaklik=21&nem=22&sni=23\"");
+  //Serial1.println("AT+HTTPPARA=\"URL\",\"http://www.unalkizil.com/index.php?sicaklik=21&nem=22&sni=23\""); Örnek internet isteğib
   //Serial1.println("AT+HTTPACTION=0");
-  
-  char valA[10], valB[10], valC[10];
   
   dtostrf(tempC, 3, 3, valA);
   dtostrf(humidity, 3, 3, valB);
   dtostrf(sni, 3, 3, valC);
-  char urlData[180];
   
   strcpy(urlData, "AT+HTTPPARA=\"URL\",\"http://www.unalkizil.com/index.php?");
   strcat(urlData, "sicaklik=");
@@ -287,10 +284,6 @@ void loop(void)
   }
   delay(100);
   setScreenSniStates();
-  if(millis() - sendMessagelastTime > 900000){//15dk 900000
-    sendMessageActive = true;
-    sendMessagelastTime = millis();
-  }
   if (millis() - lastTime > 60000)//1dk
   {
     tempC = sht1x.readTemperatureC();
@@ -303,4 +296,9 @@ void loop(void)
     sendData();
     lastTime = millis();
   }
+  if(millis() - sendMessagelastTime > 21600000){//15dk 900000
+    sendMessageActive = true;
+    sendMessagelastTime = millis();
+  }
+  
 }
